@@ -1,25 +1,36 @@
-# server/app.py
+from flask import Flask, jsonify
+from flask_sqlalchemy import SQLAlchemy
 
-from flask import Flask
-from flask_migrate import Migrate
-
-from models import db
-
-# create a Flask application instance 
 app = Flask(__name__)
-
-# configure the database connection to the local file app.db
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///app.db'
-
-# configure flag to disable modification tracking and use less memory
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# create a Migrate object to manage schema modifications
-migrate = Migrate(app, db)
+db = SQLAlchemy(app)  # make sure db is bound to the app
 
-# initialize the Flask application to use the database
-db.init_app(app)
+class Pet(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(80), nullable=False)
+    species = db.Column(db.String(80), nullable=False)
 
-
+@app.route('/pets')
+def get_pets():
+    pets = Pet.query.all()
+    return jsonify([{'id': p.id, 'name': p.name, 'species': p.species} for p in pets])
 if __name__ == '__main__':
-    app.run(port=5555, debug=True)
+    with app.app_context():
+        db.create_all()  # creates tables if they don’t exist
+
+        # Only seed if table is empty
+        if Pet.query.count() == 0:
+            from random import choice as rc
+            from faker import Faker
+
+            fake = Faker()
+            species = ['Dog', 'Cat', 'Chicken', 'Hamster', 'Turtle']
+
+            pets = [Pet(name=fake.first_name(), species=rc(species)) for _ in range(10)]
+            db.session.add_all(pets)
+            db.session.commit()
+            print("Seeded 10 random pets")
+
+    app.run(port=5000)
